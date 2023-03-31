@@ -25,32 +25,32 @@ The movie will be set in space and will feature a spaceship traveling. The space
 
 Basic movie effects:
 
-Composed Object: The spaceship will be a manually composed object consisting of multiple scene graph nodes.
-Illumination: Multiple light sources will be used to light up the spaceship and the environment. One of the light sources will be moving in the scene.
-Automated camera flight: The camera will start automatically, following the spaceship as it travels through space for 30 seconds.
+- Composed Object: The spaceship will be a manually composed object consisting of multiple scene graph nodes.
+- Illumination: Multiple light sources will be used to light up the spaceship and the environment. One of the light sources will be moving in the scene.
+- Automated camera flight: The camera will start automatically, following the spaceship as it travels through space for 30 seconds.
 
-Special effects:
+- Special effects:
 
-Particle Effects: When the spaceship moves, fire will be emitted from the engine, creating a trail behind the spaceship. We shall be showing rain when space ship lands.
+- Particle Effects: When the spaceship moves, fire will be emitted from the engine, creating a trail behind the spaceship. We shall be showing rain when space ship lands.
 
 All the basic movie effects and particle special effects will be implemented as scene graph nodes. The implementation will be based on the unmodified lab framework. The movie will be self-contained and will run on regular PCs with Visual Studio Code. The code will be documented and modular, with each feature implemented in its own function.
 
 We would have following shots in video
 
 Planned Scenes and What happens:
-1- Establishing shot of the spaceship flying through space
-2- Close-up of the ship's engines firing
-3- Wide shot of the ship approaching a planet
-4- Close-up of the ship's landing gear deploying
-5- Shot of the ship landing on the planet's surface
-6- Close-up of the protagonist looking satisfied with their success
-7- Final wide shot of the ship flying away into the depths of space
+- 1- Establishing shot of the spaceship flying through space
+- 2- Close-up of the ship's engines firing
+- 3- Wide shot of the ship approaching a planet
+- 4- Close-up of the ship's landing gear deploying
+- 5- Shot of the ship landing on the planet's surface
+- 6- Close-up of the protagonist looking satisfied with their success
+- 7- Final wide shot of the ship flying away into the depths of space
 
 
 Which objects:
-1- Space ship
-2- Aliens
-3- Earth
+- 1- Space ship
+- 2- Aliens
+- 3- Earth
 
 
 (Explain the basic story of your movie, i.e., planned scenes, what happens, which objects are used, etc.)
