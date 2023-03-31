@@ -14,12 +14,43 @@ For every submission change/extend the corresponding sections by replacing the *
 
 |               | Student ID    | First Name  | Last Name      | E-Mail         |
 |---------------|---------------|-------------|----------------|----------------|
-| **Student 1** | TODO          | TODO        | TODO           | TODO           |
-| **Student 2** | TODO          | TODO        | TODO           | TODO           |
+| **Student 1** | 12245406      | Hassan      | Abdur Rehman   | hassan.abdur.rehman@gmail.com           |
+| **Student 2** | 12242532      | Barış       | Aygen          | hbaris@sabanciuniv.edu           |
 
 ### Concept Submission due on 31.03.2023
 
-TODO
+Title: Space Adventure
+
+The movie will be set in space and will feature a spaceship traveling. The spaceship will have multiple parts, such as the engines, wings, cockpit, and antenna, each made up of separate scene graph nodes. The movie will have following effects:
+
+Basic movie effects:
+
+Composed Object: The spaceship will be a manually composed object consisting of multiple scene graph nodes.
+Automated camera flight: The camera will start automatically, following the spaceship as it travels through space for 30 seconds.
+
+Special effects:
+
+Particle Effects: When the spaceship moves, fire will be emitted from the engine, creating a trail behind the spaceship. We shall be showing rain when space ship lands.
+
+All the basic movie effects and particle special effects will be implemented as scene graph nodes. The implementation will be based on the unmodified lab framework. The movie will be self-contained and will run on regular PCs with Visual Studio Code. The code will be documented and modular, with each feature implemented in its own function.
+
+We would have following shots in video
+
+Planned Scenes and What happens:
+1- Establishing shot of the spaceship flying through space
+2- Close-up of the ship's engines firing
+3- Wide shot of the ship approaching a planet
+4- Close-up of the ship's landing gear deploying
+5- Shot of the ship landing on the planet's surface
+6- Close-up of the protagonist looking satisfied with their success
+7- Final wide shot of the ship flying away into the depths of space
+
+
+Which objects:
+1- Space ship
+2- Aliens
+3- Earth
+
 
 (Explain the basic story of your movie, i.e., planned scenes, what happens, which objects are used, etc.)
 
@@ -29,16 +60,16 @@ Selected special effects must add up to exactly 30 points. Replace yes/no with e
 
 | Selected   | ID | Name                                  | Points |
 |------------|----|---------------------------------------|--------|
-| yes/no     | S1 | Multi texturing                       | 15     |  
-| yes/no     | S2 | Level of detail                       | 15     |
-| yes/no     | S3 | Billboarding                          | 15     |
-| yes/no     | S4 | Terrain from heightmap                | 30     |
-| yes/no     | S5 | Postprocessing shader                 | 30     |
-| yes/no     | S6 | Animated water surface                | 30     |
-| yes/no     | S7 | Minimap                               | 30     |
-| yes/no     | S8 | Particle system (rain, smoke, fire)   | 30     |
-| yes/no     | S9 | Motion blur                           | 30     |
-| yes/no     | SO | Own suggestion (preapproved by email) | TODO   |
+| no      | S1 | Multi texturing                       | 15     |  
+| no      | S2 | Level of detail                       | 15     |
+| no      | S3 | Billboarding                          | 15     |
+| no      | S4 | Terrain from heightmap                | 30     |
+| no      | S5 | Postprocessing shader                 | 30     |
+| no      | S6 | Animated water surface                | 30     |
+| no      | S7 | Minimap                               | 30     |
+| yes     | S8 | Particle system (rain, smoke, fire)   | 30     |
+| no      | S9 | Motion blur                           | 30     |
+| no      | SO | Own suggestion (preapproved by email) | TODO   |
 
 ## Intermediate Submission due on 29.04.2023
 
