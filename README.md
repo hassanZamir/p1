@@ -26,6 +26,7 @@ The movie will be set in space and will feature a spaceship traveling. The space
 Basic movie effects:
 
 Composed Object: The spaceship will be a manually composed object consisting of multiple scene graph nodes.
+Illumination: Multiple light sources will be used to light up the spaceship and the environment. One of the light sources will be moving in the scene.
 Automated camera flight: The camera will start automatically, following the spaceship as it travels through space for 30 seconds.
 
 Special effects:
