@@ -13,7 +13,7 @@ var cameraAnimation = null;
 var root = null;
 var rootnoworld = null;
 var rotateNode;
-
+var transformNode;
 // time in last render step
 var previousTime = 0;
 
@@ -48,12 +48,62 @@ function init(resources) {
 
   //TODO create your own scenegraph
   root = createSceneGraph(gl, resources);
-
+  tiltSpaceship(90, -45)
   //create scenegraph without world and simple shader
   rootnoworld = new ShaderSGNode(createProgram(gl, resources.vs_single, resources.fs_single));
   rootnoworld.append(rotateNode); //reuse model part
 }
 
+// render a frame
+function render(timeInMilliseconds) {
+  // check for resize of browser window and adjust canvas sizes
+  checkForWindowResize(gl);
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+  gl.clearColor(0.9, 0.9, 0.9, 1.0);
+  //clear the buffer
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  //enable depth test to let objects in front occluse objects further away
+  gl.enable(gl.DEPTH_TEST);
+
+  //Create projection Matrix and context for rendering.
+  const context = createSGContext(gl);
+  context.projectionMatrix = mat4.perspective(mat4.create(), glm.deg2rad(30), gl.drawingBufferWidth / gl.drawingBufferHeight, 0.01, 100);
+  context.viewMatrix = mat4.lookAt(mat4.create(), [0, 1, -10], [0, 0, 0], [0, 1, 0]);
+
+
+  var deltaTime = timeInMilliseconds - previousTime;
+  previousTime = timeInMilliseconds;
+
+  moveSpaceshipToPosition(0, -deltaTime * 0.001, 0);
+  updateCameraPosition(0, 0, -20); // Set the desired offset here
+  updateCameraView(context);
+  //update animation BEFORE camera
+  cameraAnimation.update(deltaTime);
+  camera.update(deltaTime);
+
+  //At the end of the automatic flight, switch to manual control
+  if(!cameraAnimation.running && !camera.control.enabled) {
+    camera.control.enabled = true;
+  }
+
+  //TODO use your own scene for rendering
+
+  //Apply camera
+  camera.render(context);
+
+  //Render scene
+  root.render(context);
+
+  //request another call as soon as possible
+  requestAnimationFrame(render);
+}
+
+function tiltSpaceship(xAngle, yAngle) {
+  let currentMatrix = transformNode.matrix;
+  mat4.rotateY(currentMatrix, currentMatrix, glm.deg2rad(yAngle));
+  // mat4.rotateX(currentMatrix, currentMatrix, glm.deg2rad(xAngle));
+  transformNode.matrix = currentMatrix;
+}
 
 function createSceneGraph(gl, resources) {
   //create scenegraph
@@ -79,7 +129,7 @@ function createSceneGraph(gl, resources) {
 
   // create spaceship
   let spaceship = new MaterialSGNode([new RenderSGNode(resources.spaceship)]);
-  let transformNode = new TransformationSGNode(glm.translate(0, 20, 0), [
+  transformNode = new TransformationSGNode(glm.translate(0, 20, 0), [
     spaceship
   ]);
   
@@ -104,43 +154,19 @@ function makeWorld(width, height) {
   return world;
 }
 
-// render a frame
-function render(timeInMilliseconds) {
-  // check for resize of browser window and adjust canvas sizes
-  checkForWindowResize(gl);
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-  gl.clearColor(0.9, 0.9, 0.9, 1.0);
-  //clear the buffer
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  //enable depth test to let objects in front occluse objects further away
-  gl.enable(gl.DEPTH_TEST);
+function moveSpaceshipToPosition(x, y, z) {
+  let currentMatrix = transformNode.matrix;
+  mat4.translate(currentMatrix, currentMatrix, vec3.fromValues(x, y, z));
+  transformNode.matrix = currentMatrix;
+}
 
-  //Create projection Matrix and context for rendering.
-  const context = createSGContext(gl);
-  context.projectionMatrix = mat4.perspective(mat4.create(), glm.deg2rad(30), gl.drawingBufferWidth / gl.drawingBufferHeight, 0.01, 100);
-  context.viewMatrix = mat4.lookAt(mat4.create(), [0, 1, -10], [0, 0, 0], [0, 1, 0]);
+function updateCameraPosition(offsetX, offsetY, offsetZ) {
+  let spaceshipPosition = vec3.fromValues(transformNode.matrix[12], transformNode.matrix[13], transformNode.matrix[14]);
+  let cameraOffset = vec3.fromValues(offsetX, offsetY, offsetZ);
+  vec3.add(cameraPos, spaceshipPosition, cameraOffset);
+}
 
-
-  var deltaTime = timeInMilliseconds - previousTime;
-  previousTime = timeInMilliseconds;
-
-  //update animation BEFORE camera
-  cameraAnimation.update(deltaTime);
-  camera.update(deltaTime);
-
-  //At the end of the automatic flight, switch to manual control
-  if(!cameraAnimation.running && !camera.control.enabled) {
-    camera.control.enabled = true;
-  }
-
-  //TODO use your own scene for rendering
-
-  //Apply camera
-  camera.render(context);
-
-  //Render scene
-  root.render(context);
-
-  //request another call as soon as possible
-  requestAnimationFrame(render);
+function updateCameraView(context) {
+  vec3.add(cameraCenter, cameraPos, vec3.fromValues(0, 0, 10)); // Assuming the spaceship is moving along the z-axis
+  context.viewMatrix = mat4.lookAt(mat4.create(), cameraPos, cameraCenter, vec3.fromValues(0, 1, 0));
 }
