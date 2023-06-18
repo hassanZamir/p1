@@ -1,38 +1,27 @@
-/**
- * the OpenGL context
- * @type {WebGLRenderingContext}
- */
-/**
- * our shader program
- * @type {WebGLProgram}
- */
-
-// The OpenGL context
+//the OpenGL context
 var gl = null,
-program = null;
+  program = null;
 
-// Scenegraph root nodes
-var root = null;
-var rotateNode;
 
-// Camera
+//Camera
 var camera = null;
 var cameraPos = vec3.create();
 var cameraCenter = vec3.create();
+var cameraAnimation = null;
 
-// Textures
-var renderTargetColorTexture;
-var renderTargetDepthTexture;
-var worldTexture;
-var framebufferHeight = 512; 
-var framebufferWidth = 512;
-
-// Time in last render step
+// scenegraph root node
+var root = null;
+var rootnoworld = null;
+var rotateNode;
+// time in last render step
 var previousTime = 0;
-var elapsedTime = 0;
-
-// Load the shader resources using a utility function
+var scene2Initiated = false;
+var planet;
+var planetNode;
+//load the shader resources using a utility function
 loadResources({
+  vs: './src/shader/texture.vs.glsl',
+  fs: './src/shader/texture.fs.glsl',
   vs_simple: './src/shader/simple.vs.glsl',
   fs_simple: './src/shader/simple.fs.glsl',
   vs_single: './src/shader/single.vs.glsl',
@@ -48,41 +37,120 @@ loadResources({
   alien: './src/models/alien/alien.obj',
   spaceship: './src/models/spaceship/E 45 Aircraft_obj.obj',
   worldTexture: './src/models/world/world5400x2700.jpg',
-}).then(function (resources) {
+}).then(function (resources /*an object containing our keys with the loaded resources*/) {
   init(resources);
+
   render(0);
 });
 
-// Initializes OpenGL context, compile shader, and load buffers
+/**
+ * initializes OpenGL context, compile shader, and load buffers
+ */
 function init(resources) {
-  // Create a GL context
+  //create a GL context
   gl = createContext();
 
-  // Init textures
-  initTextures(resources);
-  initRenderToTexture();
 
-  // Enable depth test to let objects in front occluse objects further away
+  //setup camera
+  cameraStartPos = vec3.fromValues(0, 1, -10);
+  camera = new UserControlledCamera(gl.canvas, cameraStartPos);
+  //setup an animation for the camera, moving it into position
+  cameraAnimation = new Animation(camera, 
+            [{matrix: mat4.translate(mat4.create(), mat4.create(), vec3.fromValues(0, 1, -10)), duration: 5000}], 
+            false);
+  cameraAnimation.start()
+
+  //TODO create your own scenegraph
+  root = createSceneGraph(gl, resources);
+  // tiltSpaceship(0, -180)
+  //create scenegraph without world and simple shader
+  rootnoworld = new ShaderSGNode(createProgram(gl, resources.vs_single, resources.fs_single));
+  rootnoworld.append(rotateNode); //reuse model part
+}
+
+// render a frame
+function render(timeInMilliseconds) {
+  // check for resize of browser window and adjust canvas sizes
+  checkForWindowResize(gl);
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+  gl.clearColor(0.9, 0.9, 0.9, 1.0);
+  //clear the buffer
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  //enable depth test to let objects in front occluse objects further away
   gl.enable(gl.DEPTH_TEST);
 
-  // TODO create your own scenegraph
-  root = createSceneGraph(gl, resources);
+  //Create projection Matrix and context for rendering.
+  const context = createSGContext(gl);
+  context.projectionMatrix = mat4.perspective(mat4.create(), glm.deg2rad(30), gl.drawingBufferWidth / gl.drawingBufferHeight, 0.01, 100);
+  context.viewMatrix = mat4.lookAt(mat4.create(), [0, 1, -10], [0, 0, 0], [0, 1, 0]);
 
-  // Setup camera
-  cameraStartPos = vec3.fromValues(0, 0, 0);
-  camera = new UserControlledCamera(gl.canvas, cameraStartPos);
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'c') {
-      camera.control.enabled = !camera.control.enabled; // Toggle camera control
+
+  var deltaTime = timeInMilliseconds - previousTime;
+  previousTime = timeInMilliseconds;
+
+  updateCameraPositionByTime(timeInMilliseconds, deltaTime, context);
+  // updateCameraPosition(0, 0, -20);
+  // updateCameraPosition(-1, -1, -3); // Set the desired offset here
+  // updateCameraView(context);
+  //update animation BEFORE camera
+  cameraAnimation.update(deltaTime);
+  camera.update(deltaTime);
+
+  //At the end of the automatic flight, switch to manual control
+  if(!cameraAnimation.running && !camera.control.enabled) {
+    camera.control.enabled = true;
+  }
+
+  //TODO use your own scene for rendering
+
+  //Apply camera
+  camera.render(context);
+
+  //Render scene
+  root.render(context);
+
+  //request another call as soon as possible
+  requestAnimationFrame(render);
+}
+
+function updateCameraPositionByTime(elapsedTime, deltaTime, context) {
+  let spaceshipPosition = vec3.fromValues(rotateNode.matrix[12], rotateNode.matrix[13], rotateNode.matrix[14]);
+  let cameraOffset;
+
+  moveSpaceshipToPosition(deltaTime * 0.01, 0, 0);
+  cameraOffset = vec3.fromValues(0, 1, -5);
+  if (elapsedTime >= 5000 && elapsedTime < 15000) {
+    // Update the camera's position to be in front of the spaceship looking towards it
+    // cameraOffset = vec3.fromValues(0, 1, -5);
+    // vec3.add(cameraPos, spaceshipPosition, cameraOffset);
+    if (!scene2Initiated) {
+      let planetCenter = vec3.fromValues(planetNode.matrix[12], planetNode.matrix[13], planetNode.matrix[14]);
+      let dir = vec3.create();
+      vec3.subtract(dir, planetCenter, spaceshipPosition);
+      vec3.normalize(dir, dir);
+      let distance = -5; // Adjust the distance as needed
+
+      // Calculate the camera's new position
+      let cameraNewPosition = vec3.create();
+      vec3.scaleAndAdd(cameraNewPosition, spaceshipPosition, dir, distance);
+
+      // Update the cameraPos variable with the new camera position
+      camera.control.position = cameraNewPosition;
+
+      let upVector = vec3.fromValues(0, 1, 0);
+      camera.matrix = mat4.lookAt(mat4.create(), cameraNewPosition, spaceshipPosition, upVector);
+    //   tiltSpaceship(0, -70);
+      scene2Initiated = true;
     }
-  });
+    // let spaceshipPosition = vec3.fromValues(rotateNode.matrix[12], rotateNode.matrix[13], rotateNode.matrix[14]);
+  }
 }
 
 function createSceneGraph(gl, resources) {
-  // Create scenegraph
-  const root = new ShaderSGNode(createProgram(gl, resources.vs_texture, resources.fs_texture))
+  //create scenegraph
+  const root = new ShaderSGNode(createProgram(gl, resources.vs, resources.fs))
 
-  // Create node with different shaders
+  // create node with different shaders
   function createLightSphere() {
     return new ShaderSGNode(createProgram(gl, resources.vs_single, resources.fs_single), [
       new RenderSGNode(makeSphere(.2, 10, 10))
@@ -99,215 +167,57 @@ function createSceneGraph(gl, resources) {
   // Add sun to scenegraph
   root.append(new TransformationSGNode(glm.transform({ translate: [120, -75, -400], scale: 150}), [sun]));
 
-  // Create spaceship
+  // create white light node
+  // let light = new LightSGNode();
+  // light.ambient = [.5, .5, .5, 1];
+  // light.diffuse = [1, 1, 1, 1];
+  // light.specular = [1, 1, 1, 1];
+  // light.position = [0, 2, 2];
+  // light.append(createLightSphere(resources));
+  // // add light to scenegraph
+  // root.append(light);
+
+
+  // create spaceship
   let spaceship = new MaterialSGNode([new RenderSGNode(resources.spaceship)]);
-  spaceship.ambient = [0.2, 0, 0, 1],
-  spaceship.diffuse = [0.8, 0, 0, 1],
-  spaceship.specular = [1, 1, 1, 1],
-  spaceship.shininess = 10
+  spaceship.matrix = mat4.scale(mat4.create(), mat4.create(), vec3.fromValues(0.5, 0.5, 0.5));
 
   // Create spaceship light
   let spaceshipLight = new SpotLightSGNode();
-  spaceshipLight.ambient = [0.2, 0.2, 0.2, 1];
-  spaceshipLight.diffuse = [2.0, 2.0, 2.0, 1.0];
-  spaceshipLight.specular = [2.0, 2.0, 2.0, 1.0];
-  spaceshipLight.append(createLightSphere());
-  
-  // Create transformation nodes for spaceship and light
-  let spaceshipTransform = new TransformationSGNode(mat4.create(), [spaceship]);
+  // spaceshipLight.ambient = [0.2, 0.2, 0.2, 1];
+  // spaceshipLight.diffuse = [2.0, 2.0, 2.0, 1.0];
+  // spaceshipLight.specular = [2.0, 2.0, 2.0, 1.0];
+  // spaceshipLight.append(createLightSphere());
+
   let lightTransform = new TransformationSGNode(glm.transform({ translate: [0, 0, -2.8] }), [spaceshipLight]);
 
   // Create rotation node for spaceship and bind light to it
   rotateNode = new TransformationSGNode(mat4.create(), [
-    new TransformationSGNode(glm.translate(0, 0, 0), [spaceshipTransform]),
+    new TransformationSGNode(glm.translate(0, 0, 0), [spaceship]),
     lightTransform
   ]);
+  
+  rotateNode.matrix = mat4.translate(mat4.create(), mat4.create(), vec3.fromValues(-10, 0, 10));
+  // rotateNode.matrix = mat4.translate(mat4.create(), mat4.create(), vec3.fromValues(-10, 0, 10));
+  rotateNode.matrix = mat4.scale(rotateNode.matrix, rotateNode.matrix, vec3.fromValues(0.2, 0.2, 0.2));
 
-  // Create world
-  let world = new MaterialSGNode(
-                new TextureSGNode(renderTargetColorTexture,2,
-                new RenderSGNode(makeWorld(200,200))
-                ));
-  world.ambient = [0.1, 0.2, 0.0, 1.0]; 
-  world.diffuse = [0.5, 1.0, 0.5, 1.0];
-  world.specular = [0.5, 0.5, 0.5, 1.0];
-  world.shininess = 5;
-
-  root.append(new TransformationSGNode(glm.transform({ translate: [0, -210, 0], rotateX: -90, scale: 3}), [world]));
-
+  // add spaceship to scenegraph
   root.append(rotateNode);
 
+  // Create world
+  // let world = new MaterialSGNode([new RenderSGNode(makeWorld(50,50))]);
+  // world.ambient = [0.24725, 0.1995, 0.0745, 1];
+  // world.diffuse = [0.5, 1.0, 0.5, 1.0];
+  // world.specular = [0.628281, 0.555802, 0.366065, 1];
+  // world.shininess = 50;
+  // // add world to scenegraph
+  // root.append(new TransformationSGNode(glm.transform({ translate: [0,-1.5,0], rotateX: -90, scale: 3}), [world]));
+
+  planet = new MaterialSGNode([new RenderSGNode(makeSphere(5, 50, 50))]);
+  planetNode = new TransformationSGNode(glm.transform({ translate: [20, 0, 50], scale: 0 }), [planet]);
+  root.append(planetNode);
+  
   return root;
-}
-
-function initTextures(resources)
-{
-  // Create texture object
-  worldTexture = gl.createTexture();
-  // Select a texture unit
-  gl.activeTexture(gl.TEXTURE0);
-  // Bind texture to active texture unit
-  gl.bindTexture(gl.TEXTURE_2D, worldTexture);
-  // Set sampling parameters
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-  gl.texImage2D(gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    resources.worldTexture);
-
-  // Clean up/unbind texture
-  gl.bindTexture(gl.TEXTURE_2D, null);
-}
-
-function initRenderToTexture() {
-  // General setup
-  gl.activeTexture(gl.TEXTURE0);
-
-  // Create framebuffer
-  renderTargetFramebuffer = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, renderTargetFramebuffer);
-  renderTargetColorTexture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, renderTargetColorTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-  gl.texImage2D(gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    framebufferWidth,
-    framebufferHeight,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    null);
-
-  // Create depth texture
-  renderTargetDepthTexture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, renderTargetDepthTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, framebufferWidth, framebufferHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
-
-  // Attach textures to framebuffer
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderTargetColorTexture, 0);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderTargetDepthTexture, 0);
-
-  // Check if framebuffer was created successfully
-  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!=gl.FRAMEBUFFER_COMPLETE)
-    {alert('Framebuffer incomplete!');}
-
-  // Clean up
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
-
-function renderToTexture(timeInMilliseconds)
-{
-  gl.bindFramebuffer(gl.FRAMEBUFFER, renderTargetFramebuffer);
-
-  // Setup viewport
-  gl.viewport(0, 0, framebufferWidth, framebufferHeight);
-  gl.clearColor(0.9, 0.9, 0.9, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  // Setup context and camera matrices
-  const context = createSGContext(gl);
-  context.projectionMatrix = mat4.perspective(mat4.create(), glm.deg2rad(30), framebufferWidth / framebufferHeight, 0.01, 100);
-  context.viewMatrix = mat4.lookAt(mat4.create(), [0,1,-10], [0,0,0], [0,1,0]);
-  context.timeInMilliseconds = timeInMilliseconds;
-
-  // Disable framebuffer (to render to screen again)
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
-
-// Render a frame
-function render(timeInMilliseconds) {
-  // Check for resize of browser window and adjust canvas sizes
-  checkForWindowResize(gl);
-  // RenderToTexture(timeInMilliseconds);
-  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-  // Set the background color to dark blue
-  gl.clearColor(0.0, 0.0, 0.2, 1.0);
-
-  // Clear the buffer
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  // Create projection Matrix and context for rendering.
-  const context = createSGContext(gl);
-  context.projectionMatrix = mat4.perspective(mat4.create(), glm.deg2rad(30), gl.drawingBufferWidth / gl.drawingBufferHeight, 0.01, 100);
-  context.viewMatrix = mat4.lookAt(mat4.create(), [0, 1, -10], [0, 0, 0], [0, 1, 0]);
-
-  var deltaTime = timeInMilliseconds - previousTime;
-  previousTime = timeInMilliseconds;
-  elapsedTime += deltaTime;
-
-  if (elapsedTime >= 30000) {
-    camera.control.enabled = true;
-  }
-
-  // Spaceship animation
-  let initialSpeed, decreaseRate;
-
-  initialSpeed = 0.04; // Adjust the initial speed as needed
-  decreaseRate = 0.002; // Adjust the rate at which the speed decreases
-
-  if (elapsedTime < 18000) {
-    // Move rotateNode (spaceship) forward on x-axis
-    const elapsedSeconds = elapsedTime / 1000; // Convert elapsed time to seconds
-    const translationSpeed = initialSpeed - (decreaseRate * elapsedSeconds); // Calculate the adjusted speed
-    const translationMatrix = mat4.translate(mat4.create(), mat4.create(), [0, 0, -translationSpeed * deltaTime]);
-    mat4.multiply(rotateNode.matrix, rotateNode.matrix, translationMatrix);
-  }
-  
-  if (elapsedTime >= 9000 && elapsedTime < 14500) {
-    // Rotate rotateNode (spaceship) 90 degrees on z-axis slowly
-    const rotationSpeed = glm.deg2rad(0.0075); // Adjust the speed as needed
-    const rotationMatrix = mat4.rotateX(mat4.create(), mat4.create(), -rotationSpeed * deltaTime);
-    mat4.multiply(rotateNode.matrix, rotateNode.matrix, rotationMatrix);
-  }
-  
-  if (elapsedTime >= 14500 && elapsedTime < 18000) {
-    // Rotate rotateNode (spaceship) 90 degrees on z-axis slowly
-    const rotationSpeed = glm.deg2rad(0.0075); // Adjust the speed as needed
-    const rotationMatrix = mat4.rotateX(mat4.create(), mat4.create(), rotationSpeed * deltaTime);
-    mat4.multiply(rotateNode.matrix, rotateNode.matrix, rotationMatrix);
-  }
-
-  if (elapsedTime >= 18500 && elapsedTime < 26500) {
-    // Rotate rotateNode (spaceship) 90 degrees on z-axis slowly
-    const rotationSpeed = glm.deg2rad(0.013); // Adjust the speed as needed
-    const rotationMatrix = mat4.rotateX(mat4.create(), mat4.create(), rotationSpeed * deltaTime);
-    mat4.multiply(rotateNode.matrix, rotateNode.matrix, rotationMatrix);
-  }  
-
-  initialSpeed1 = 0.001; // Adjust the initial speed as needed
-  decreaseRate1 = 0.001; // Adjust the rate at which the speed decreases
-
-  if (elapsedTime >= 28500 && elapsedTime < 34000) {
-    // Move rotateNode (spaceship) down on y-axis
-    const elapsedSeconds = elapsedTime / 1000; // Convert elapsed time to seconds
-    const translationSpeed = initialSpeed1 - (decreaseRate1 * elapsedSeconds); // Calculate the adjusted speed
-    const translationMatrix = mat4.translate(mat4.create(), mat4.create(), [0, 0, -translationSpeed * deltaTime]);
-    mat4.multiply(rotateNode.matrix, rotateNode.matrix, translationMatrix);
-  }
-
-  // Move and apply camera
-  camera.update(deltaTime);
-  camera.render(context);
-
-  // Render scene
-  root.render(context);
-
-  // Request another call as soon as possible
-  requestAnimationFrame(render);
 }
 
 function makeWorld(width, height) {
@@ -316,32 +226,47 @@ function makeWorld(width, height) {
   return world;
 }
 
-// Classes
+// function moveSpaceshipToPosition(x, y, z) {
+//   let currentMatrix = rotateNode.matrix;
+//   mat4.translate(currentMatrix, currentMatrix, vec3.fromValues(x, y, z));
+//   rotateNode.matrix = currentMatrix;
+// }
+function moveSpaceshipToPosition(deltaTime) {
+  let currentMatrix = rotateNode.matrix;
+  let direction = vec3.fromValues(0, 0, -20); // Move along the negative x-axis
+  let speed = 0.01; // Adjust the speed as needed
+  let velocity = vec3.scale(vec3.create(), direction, speed * deltaTime);
+  mat4.translate(currentMatrix, currentMatrix, velocity);
+  rotateNode.matrix = currentMatrix;
+}
+
+function updateCameraPosition(offsetX, offsetY, offsetZ) {
+  let spaceshipPosition = vec3.fromValues(rotateNode.matrix[12], rotateNode.matrix[13], rotateNode.matrix[14]);
+  let cameraOffset = vec3.fromValues(offsetX, offsetY, offsetZ);
+  vec3.add(cameraPos, spaceshipPosition, cameraOffset);
+}
+
+// function updateCameraView(context) {
+//   vec3.add(cameraCenter, cameraPos, vec3.fromValues(0, 0, 10)); // Assuming the spaceship is moving along the z-axis
+//   context.viewMatrix = mat4.lookAt(mat4.create(), cameraPos, cameraCenter, vec3.fromValues(0, 1, 0));
+// }
+function updateCameraView(context) {
+  let spaceshipPosition = vec3.fromValues(rotateNode.matrix[12], rotateNode.matrix[13], rotateNode.matrix[14]);
+  context.viewMatrix = mat4.lookAt(mat4.create(), cameraPos, spaceshipPosition, [0, 1, 0]);
+}
+
+function tiltSpaceship(xAngle, yAngle) {
+  let currentMatrix = rotateNode.matrix;
+  mat4.rotateY(currentMatrix, currentMatrix, glm.deg2rad(yAngle));
+  mat4.rotateX(currentMatrix, currentMatrix, glm.deg2rad(xAngle));
+  rotateNode.matrix = currentMatrix;
+}
+
 class SpotLightSGNode extends LightSGNode {
   constructor() {
     super();
     this.position = [0, 0, 0];
     this.direction = [0, -1, -1];
-    this.angle = 30; // Spotlight angle in degrees
-  }
-}
-
-class TextureSGNode extends SGNode {
-  constructor(texture, textureunit, children ) {
-      super(children);
-      this.texture = texture;
-      this.textureunit = textureunit;
-  }
-  render(context)
-  {
-    gl.uniform1i(gl.getUniformLocation(context.shader, 'u_enableObjectTexture'), 1);
-    gl.uniform1i(gl.getUniformLocation(context.shader, 'u_tex'), this.textureunit);
-    gl.uniform1f(gl.getUniformLocation(context.shader, 'u_wobbleTime'), context.timeInMilliseconds);
-    gl.activeTexture(gl.TEXTURE0 + this.textureunit);
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    super.render(context);
-    gl.activeTexture(gl.TEXTURE0 + this.textureunit);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.uniform1i(gl.getUniformLocation(context.shader, 'u_enableObjectTexture'), 0);
+    this.angle = 0; // Spotlight angle in degrees
   }
 }
